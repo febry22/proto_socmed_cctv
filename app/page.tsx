@@ -2,13 +2,32 @@
 
 import { useState } from "react";
 import SearchBar from "@/components/SearchBar";
-import SpiderDiagram from "@/components/SpiderDiagram";
+import SpiderDiagram, { CATEGORY_COLORS } from "@/components/SpiderDiagram";
 import NodeDetailPanel from "@/components/NodeDetailPanel";
 import LoadingState from "@/components/LoadingState";
 import ThemeToggle from "@/components/ThemeToggle";
-import { GraphNode, SearchResponse } from "@/lib/types";
+import SearchStats from "@/components/SearchStats";
+import { CATEGORY_LABELS, GraphNode, SearchResponse, SourceCategory } from "@/lib/types";
 
 const EXAMPLE_QUERIES = ["Karhutla", "Banjir Jakarta", "Gempa Cianjur", "Pemilu 2029"];
+
+const HOW_IT_WORKS = [
+  {
+    step: "01",
+    title: "Cari topik",
+    desc: "Masukkan kata kunci dan rentang tanggal yang ingin dipantau.",
+  },
+  {
+    step: "02",
+    title: "Lihat peta sumber",
+    desc: "Hasil ditampilkan sebagai diagram interaktif per kategori sumber.",
+  },
+  {
+    step: "03",
+    title: "Telusuri detail",
+    desc: "Klik salah satu node untuk melihat ringkasan, sumber, dan tautannya.",
+  },
+];
 
 function defaultDateRange() {
   const end = new Date();
@@ -61,39 +80,89 @@ export default function Home() {
           <ThemeToggle />
         </header>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center px-6">
-          <div className="fixed right-4 top-4 z-30">
+        <div className="relative flex flex-1 flex-col overflow-hidden">
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div className="absolute -left-32 -top-32 h-80 w-80 rounded-full bg-indigo-200/50 blur-3xl dark:bg-indigo-900/20" />
+            <div className="absolute -right-24 top-1/3 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-900/10" />
+            <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-rose-100/40 blur-3xl dark:bg-rose-900/10" />
+          </div>
+
+          <header className="relative flex items-center justify-between px-6 py-5">
+            <span className="text-sm font-semibold text-indigo-600">SocMed Radar</span>
             <ThemeToggle />
-          </div>
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-              SocMed <span className="text-indigo-600">Radar</span>
-            </h1>
-            <p className="mt-2 text-neutral-500">
-              Cari topik &mdash; hasilnya divisualisasikan sebagai peta sumber, bukan daftar tautan.
-            </p>
-          </div>
-          <div className="w-full max-w-3xl">
-            <SearchBar
-              initialStartDate={defaultStart}
-              initialEndDate={defaultEnd}
-              loading={loading}
-              onSearch={runSearch}
-            />
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              {EXAMPLE_QUERIES.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => runSearch(q, defaultStart, defaultEnd)}
-                  className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+          </header>
+
+          <div className="relative flex flex-1 flex-col items-center justify-center px-6 pb-16">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300">
+              Prototipe pemantauan lintas sumber
+            </span>
+
+            <div className="mb-8 mt-4 text-center">
+              <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 sm:text-5xl dark:text-neutral-50">
+                SocMed <span className="text-indigo-600">Radar</span>
+              </h1>
+              <p className="mx-auto mt-3 max-w-xl text-neutral-500">
+                Cari topik &mdash; hasilnya divisualisasikan sebagai peta sumber, bukan daftar tautan.
+              </p>
+            </div>
+
+            <div className="w-full max-w-3xl">
+              <SearchBar
+                initialStartDate={defaultStart}
+                initialEndDate={defaultEnd}
+                loading={loading}
+                onSearch={runSearch}
+              />
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {EXAMPLE_QUERIES.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => runSearch(q, defaultStart, defaultEnd)}
+                    className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <span className="text-neutral-400">Dipantau dari:</span>
+              {(Object.keys(CATEGORY_LABELS) as SourceCategory[]).map((category) => (
+                <span
+                  key={category}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
                 >
-                  {q}
-                </button>
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: CATEGORY_COLORS[category] }}
+                  />
+                  {CATEGORY_LABELS[category]}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-14 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
+              {HOW_IT_WORKS.map((item) => (
+                <div
+                  key={item.step}
+                  className="rounded-2xl border border-neutral-200 bg-white/60 p-4 text-left backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/50"
+                >
+                  <span className="text-xs font-semibold text-indigo-600">{item.step}</span>
+                  <h3 className="mt-1 text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                    {item.title}
+                  </h3>
+                  <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{item.desc}</p>
+                </div>
               ))}
             </div>
           </div>
+
+          <footer className="relative px-6 pb-6 text-center text-xs text-neutral-400">
+            Data pada prototipe ini bersifat simulasi, bukan hasil pemantauan langsung.
+          </footer>
         </div>
       )}
 
@@ -104,7 +173,10 @@ export default function Home() {
             <div className="flex flex-1 items-center justify-center text-sm text-red-500">{error}</div>
           )}
           {!loading && !error && result && (
-            <SpiderDiagram data={result} onNodeSelect={setSelectedNode} />
+            <>
+              <SearchStats data={result} />
+              <SpiderDiagram data={result} onNodeSelect={setSelectedNode} />
+            </>
           )}
           <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
         </main>

@@ -1,5 +1,7 @@
 export type SourceCategory = "news" | "social" | "tiktok_live" | "web";
 
+export type Sentiment = "positive" | "negative" | "neutral";
+
 export interface GraphNode {
   id: string;
   label: string;
@@ -12,6 +14,7 @@ export interface GraphNode {
     url?: string;
     snippet?: string;
     viewers?: number;
+    sentiment?: Sentiment;
   };
 }
 
@@ -38,4 +41,10 @@ export const CATEGORY_LABELS: Record<SourceCategory, string> = {
   social: "Media Sosial",
   tiktok_live: "TikTok Live",
   web: "Web Lainnya",
+};
+
+export const SENTIMENT_LABELS: Record<Sentiment, string> = {
+  positive: "Positif",
+  negative: "Negatif",
+  neutral: "Netral",
 };

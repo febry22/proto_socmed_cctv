@@ -2,20 +2,20 @@
 
 import * as d3 from "d3";
 import { useEffect, useRef } from "react";
-import { GraphLink, GraphNode, SearchResponse, SourceCategory } from "@/lib/types";
+import { GraphLink, GraphNode, SearchResponse, Sentiment, SourceCategory } from "@/lib/types";
 
 interface SpiderDiagramProps {
   data: SearchResponse;
   onNodeSelect: (node: GraphNode) => void;
 }
 
-type SimNode = GraphNode & d3.SimulationNodeDatum;
+type SimNode = GraphNode & d3.SimulationNodeDatum & { childCount?: number };
 type SimLink = d3.SimulationLinkDatum<SimNode> & GraphLink;
 
 const VIEW_WIDTH = 1200;
 const VIEW_HEIGHT = 800;
 
-const CATEGORY_COLORS: Record<SourceCategory, string> = {
+export const CATEGORY_COLORS: Record<SourceCategory, string> = {
   news: "#f59e0b",
   social: "#10b981",
   tiktok_live: "#f43f5e",
@@ -24,10 +24,19 @@ const CATEGORY_COLORS: Record<SourceCategory, string> = {
 
 const ROOT_COLOR = "#4f46e5";
 
+export const SENTIMENT_COLORS: Record<Sentiment, string> = {
+  positive: "#16a34a",
+  negative: "#dc2626",
+  neutral: "#94a3b8",
+};
+
 function radiusFor(node: SimNode): number {
   if (node.type === "root") return 58;
-  if (node.type === "category") return 40;
-  return 24;
+  if (node.type === "category") {
+    const count = node.childCount ?? 0;
+    return Math.min(56, Math.max(40, 36 + count * 2.5));
+  }
+  return 28;
 }
 
 function fillFor(node: SimNode): string {
@@ -51,6 +60,17 @@ function fontSizeFor(node: SimNode): number {
   return 10.5;
 }
 
+function maxLabelCharsFor(node: SimNode): number {
+  if (node.type === "root") return 40;
+  if (node.type === "category") return 60;
+  return 16;
+}
+
+function truncateLabel(label: string, maxChars: number): string {
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
 export default function SpiderDiagram({ data, onNodeSelect }: SpiderDiagramProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const onNodeSelectRef = useRef(onNodeSelect);
@@ -64,6 +84,14 @@ export default function SpiderDiagram({ data, onNodeSelect }: SpiderDiagramProps
 
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
     const links: SimLink[] = data.links.map((l) => ({ ...l }));
+
+    const childCountByParentId = new Map<string, number>();
+    data.links.forEach((l) => {
+      childCountByParentId.set(l.source, (childCountByParentId.get(l.source) ?? 0) + 1);
+    });
+    nodes.forEach((n) => {
+      if (n.type === "category") n.childCount = childCountByParentId.get(n.id) ?? 0;
+    });
 
     const root = nodes.find((n) => n.type === "root");
     if (root) {
@@ -169,10 +197,18 @@ export default function SpiderDiagram({ data, onNodeSelect }: SpiderDiagramProps
       .style("line-height", "1.15")
       .style("color", (d) => textColorFor(d))
       .style("overflow", "hidden")
-      .style("display", "-webkit-box")
-      .style("-webkit-line-clamp", (d) => (d.type === "root" ? "3" : "4"))
-      .style("-webkit-box-orient", "vertical")
-      .text((d) => d.label);
+      .style("word-break", "break-word")
+      .text((d) => truncateLabel(d.label, maxLabelCharsFor(d)));
+
+    nodeSelection
+      .filter((d) => d.type === "item" && !!d.meta?.sentiment)
+      .append("circle")
+      .attr("r", 6)
+      .attr("cx", (d) => radiusFor(d) * 0.72)
+      .attr("cy", (d) => -radiusFor(d) * 0.72)
+      .attr("fill", (d) => SENTIMENT_COLORS[d.meta!.sentiment!])
+      .attr("stroke", "#ffffff")
+      .attr("stroke-width", 1.5);
 
     const simulation = d3
       .forceSimulation<SimNode>(nodes)
@@ -215,7 +251,7 @@ export default function SpiderDiagram({ data, onNodeSelect }: SpiderDiagramProps
   return (
     <svg
       ref={svgRef}
-      className="h-full w-full"
+      className="w-full flex-1"
       role="img"
       aria-label={`Diagram hasil pencarian untuk ${data.keyword}`}
     />

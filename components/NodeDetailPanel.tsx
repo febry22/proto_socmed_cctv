@@ -1,4 +1,5 @@
-import { CATEGORY_LABELS, GraphNode } from "@/lib/types";
+import { SENTIMENT_COLORS } from "@/components/SpiderDiagram";
+import { CATEGORY_LABELS, GraphNode, SENTIMENT_LABELS } from "@/lib/types";
 
 interface NodeDetailPanelProps {
   node: GraphNode | null;
@@ -29,9 +30,23 @@ export default function NodeDetailPanel({ node, onClose }: NodeDetailPanelProps)
       {node && node.type === "item" && (
         <div className="flex h-full flex-col gap-4">
           <div className="flex items-start justify-between gap-2">
-            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
-              {node.category ? CATEGORY_LABELS[node.category] : ""}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
+                {node.category ? CATEGORY_LABELS[node.category] : ""}
+              </span>
+              {node.meta?.sentiment && (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+                  style={{ backgroundColor: `${SENTIMENT_COLORS[node.meta.sentiment]}1A`, color: SENTIMENT_COLORS[node.meta.sentiment] }}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: SENTIMENT_COLORS[node.meta.sentiment] }}
+                  />
+                  {SENTIMENT_LABELS[node.meta.sentiment]}
+                </span>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="rounded-full p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800"

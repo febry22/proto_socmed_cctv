@@ -1,5 +1,11 @@
 import { SeededRandom } from "./seededRandom";
-import { CATEGORY_LABELS, GraphLink, GraphNode, SearchResponse, SourceCategory } from "./types";
+import { CATEGORY_LABELS, GraphLink, GraphNode, Sentiment, SearchResponse, SourceCategory } from "./types";
+
+const SENTIMENT_POOL: Sentiment[] = ["positive", "negative", "negative", "neutral", "neutral", "neutral"];
+
+function pickSentiment(rnd: SeededRandom): Sentiment {
+  return rnd.pick(SENTIMENT_POOL);
+}
 
 const NEWS_SOURCES = [
   "Kompas.com",
@@ -93,6 +99,7 @@ function buildNewsItem(rnd: SeededRandom, keyword: string, index: number, start:
       date: rnd.dateBetween(start, end),
       url: `https://${rnd.pick(NEWS_SOURCES).toLowerCase()}/artikel/${index}`,
       snippet: `Ringkasan berita terkait "${keyword}" dari sumber media nasional. Konten ini adalah data dummy untuk keperluan prototipe.`,
+      sentiment: pickSentiment(rnd),
     },
   };
 }
@@ -110,6 +117,7 @@ function buildSocialItem(rnd: SeededRandom, keyword: string, index: number, star
       date: rnd.dateBetween(start, end),
       url: `https://example-social.test/post/${index}`,
       snippet: `Postingan warganet di ${platform} yang menyebut kata kunci "${keyword}". Data dummy untuk prototipe.`,
+      sentiment: pickSentiment(rnd),
     },
   };
 }
@@ -127,6 +135,7 @@ function buildTiktokItem(rnd: SeededRandom, keyword: string, index: number): Gra
       url: `https://tiktok.com/live/${index}`,
       viewers: rnd.int(120, 15000),
       snippet: `Siaran langsung TikTok yang sedang berlangsung terkait "${keyword}". Data dummy untuk prototipe.`,
+      sentiment: pickSentiment(rnd),
     },
   };
 }
@@ -143,6 +152,7 @@ function buildWebItem(rnd: SeededRandom, keyword: string, index: number, start: 
       date: rnd.dateBetween(start, end),
       url: `https://${domain}/page/${index}`,
       snippet: `Halaman web hasil scraping yang membahas "${keyword}". Data dummy untuk prototipe.`,
+      sentiment: pickSentiment(rnd),
     },
   };
 }
