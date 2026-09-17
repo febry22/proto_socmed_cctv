@@ -1,69 +1,114 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import SearchBar from "@/components/SearchBar";
+import SpiderDiagram from "@/components/SpiderDiagram";
+import NodeDetailPanel from "@/components/NodeDetailPanel";
+import LoadingState from "@/components/LoadingState";
+import ThemeToggle from "@/components/ThemeToggle";
+import { GraphNode, SearchResponse } from "@/lib/types";
+
+const EXAMPLE_QUERIES = ["Karhutla", "Banjir Jakarta", "Gempa Cianjur", "Pemilu 2029"];
+
+function defaultDateRange() {
+  const end = new Date();
+  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
 
 export default function Home() {
+  const [{ start: defaultStart, end: defaultEnd }] = useState(defaultDateRange);
+  const [result, setResult] = useState<SearchResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+
+  async function runSearch(keyword: string, startDate: string, endDate: string) {
+    setLoading(true);
+    setError(null);
+    setSelectedNode(null);
+    try {
+      const res = await fetch("/api/search", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ keyword, startDate, endDate }),
+      });
+      if (!res.ok) throw new Error("Pencarian gagal, coba lagi.");
+      const data: SearchResponse = await res.json();
+      setResult(data);
+    } catch {
+      setError("Terjadi kesalahan saat mengambil hasil pencarian.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const hasResult = result !== null;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+    <div className="flex min-h-screen flex-1 flex-col bg-neutral-50 dark:bg-neutral-950">
+      {hasResult ? (
+        <header className="sticky top-0 z-10 flex flex-col gap-3 border-b border-neutral-200 bg-white/90 px-6 py-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90 sm:flex-row sm:items-center">
+          <h1 className="shrink-0 text-lg font-semibold text-indigo-600">SocMed Radar</h1>
+          <SearchBar
+            initialKeyword={result?.keyword}
+            initialStartDate={result?.dateRange.start ?? defaultStart}
+            initialEndDate={result?.dateRange.end ?? defaultEnd}
+            loading={loading}
+            onSearch={runSearch}
+          />
+          <ThemeToggle />
+        </header>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center px-6">
+          <div className="fixed right-4 top-4 z-30">
+            <ThemeToggle />
+          </div>
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+              SocMed <span className="text-indigo-600">Radar</span>
+            </h1>
+            <p className="mt-2 text-neutral-500">
+              Cari topik &mdash; hasilnya divisualisasikan sebagai peta sumber, bukan daftar tautan.
+            </p>
+          </div>
+          <div className="w-full max-w-3xl">
+            <SearchBar
+              initialStartDate={defaultStart}
+              initialEndDate={defaultEnd}
+              loading={loading}
+              onSearch={runSearch}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {EXAMPLE_QUERIES.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => runSearch(q, defaultStart, defaultEnd)}
+                  className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </main>
+      )}
+
+      {hasResult && (
+        <main className="relative flex flex-1 flex-col overflow-hidden">
+          {loading && <LoadingState />}
+          {error && !loading && (
+            <div className="flex flex-1 items-center justify-center text-sm text-red-500">{error}</div>
+          )}
+          {!loading && !error && result && (
+            <SpiderDiagram data={result} onNodeSelect={setSelectedNode} />
+          )}
+          <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+        </main>
+      )}
     </div>
   );
 }
