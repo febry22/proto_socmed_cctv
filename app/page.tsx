@@ -2,14 +2,26 @@
 
 import { useState } from "react";
 import SearchBar from "@/components/SearchBar";
-import SpiderDiagram, { CATEGORY_COLORS } from "@/components/SpiderDiagram";
-import NodeDetailPanel from "@/components/NodeDetailPanel";
+import AccountNetworkDiagram from "@/components/AccountNetworkDiagram";
+import AccountDetailPanel from "@/components/AccountDetailPanel";
 import LoadingState from "@/components/LoadingState";
 import ThemeToggle from "@/components/ThemeToggle";
-import SearchStats from "@/components/SearchStats";
-import { CATEGORY_LABELS, GraphNode, SearchResponse, SourceCategory } from "@/lib/types";
+import NetworkStats from "@/components/NetworkStats";
+import AlertPanel from "@/components/AlertPanel";
+import { computeNetworkAlerts } from "@/lib/networkAlerts";
+import {
+  AccountNetworkChunk,
+  AccountNode,
+  MAX_AUTO_DEPTH,
+  PLATFORM_COLORS,
+  PLATFORM_LABELS,
+  AccountPlatform,
+  expandAccount,
+  expandLoadMore,
+  generateAccountNetworkRoot,
+} from "@/lib/accountNetworkData";
 
-const EXAMPLE_QUERIES = ["Karhutla", "Banjir Jakarta", "Gempa Cianjur", "Pemilu 2029"];
+const EXAMPLE_QUERIES = ["Demonstrasi", "Kerusuhan", "Pemilu"];
 
 const HOW_IT_WORKS = [
   {
@@ -19,13 +31,13 @@ const HOW_IT_WORKS = [
   },
   {
     step: "02",
-    title: "Lihat peta sumber",
-    desc: "Hasil ditampilkan sebagai diagram interaktif per kategori sumber.",
+    title: "Lihat peta akun",
+    desc: "Akun yang live membahas topik tersebut ditampilkan per platform.",
   },
   {
     step: "03",
-    title: "Telusuri detail",
-    desc: "Klik salah satu node untuk melihat ringkasan, sumber, dan tautannya.",
+    title: "Telusuri jaringan",
+    desc: `Klik akun untuk memuat following/follower-nya hingga ${MAX_AUTO_DEPTH} level.`,
   },
 ];
 
@@ -36,34 +48,59 @@ function defaultDateRange() {
   return { start: fmt(start), end: fmt(end) };
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function Home() {
   const [{ start: defaultStart, end: defaultEnd }] = useState(defaultDateRange);
-  const [result, setResult] = useState<SearchResponse | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const [dateRange, setDateRange] = useState({ start: defaultStart, end: defaultEnd });
+  const [network, setNetwork] = useState<AccountNetworkChunk | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<AccountNode | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [alertBaseline, setAlertBaseline] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
 
-  async function runSearch(keyword: string, startDate: string, endDate: string) {
-    setLoading(true);
-    setError(null);
-    setSelectedNode(null);
-    try {
-      const res = await fetch("/api/search", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ keyword, startDate, endDate }),
-      });
-      if (!res.ok) throw new Error("Pencarian gagal, coba lagi.");
-      const data: SearchResponse = await res.json();
-      setResult(data);
-    } catch {
-      setError("Terjadi kesalahan saat mengambil hasil pencarian.");
-    } finally {
-      setLoading(false);
+  function announceNewAlerts(chunk: AccountNetworkChunk, baseline: number) {
+    const alertCount = computeNetworkAlerts(chunk).length;
+    if (alertCount > baseline) {
+      const delta = alertCount - baseline;
+      setToast(`${delta} aktivitas baru terindikasi`);
+      setTimeout(() => setToast(null), 5000);
     }
+    setAlertBaseline(alertCount);
   }
 
-  const hasResult = result !== null;
+  async function runSearch(kw: string, startDate: string, endDate: string) {
+    setLoading(true);
+    setSelectedNode(null);
+    await delay(500 + Math.random() * 300);
+    const chunk = generateAccountNetworkRoot(kw, startDate, endDate);
+    setKeyword(kw);
+    setDateRange({ start: startDate, end: endDate });
+    setNetwork(chunk);
+    setExpandedIds(new Set());
+    setAlertBaseline(0);
+    announceNewAlerts(chunk, 0);
+    setLoading(false);
+  }
+
+  function handleExpand(node: AccountNode) {
+    if (expandedIds.has(node.id) || !network) return;
+    const addition = node.type === "load-more" ? expandLoadMore(keyword, node) : expandAccount(keyword, node);
+    const nextChunk: AccountNetworkChunk = {
+      nodes: [...network.nodes, ...addition.nodes],
+      links: [...network.links, ...addition.links],
+    };
+    setNetwork(nextChunk);
+    setExpandedIds((prev) => new Set(prev).add(node.id));
+    announceNewAlerts(nextChunk, alertBaseline);
+  }
+
+  const hasResult = network !== null;
+  const alerts = network ? computeNetworkAlerts(network) : [];
 
   return (
     <div className="flex min-h-screen flex-1 flex-col bg-neutral-50 dark:bg-neutral-950">
@@ -71,13 +108,16 @@ export default function Home() {
         <header className="sticky top-0 z-10 flex flex-col gap-3 border-b border-neutral-200 bg-white/90 px-6 py-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90 sm:flex-row sm:items-center">
           <h1 className="shrink-0 text-lg font-semibold text-indigo-600">SocMed Radar</h1>
           <SearchBar
-            initialKeyword={result?.keyword}
-            initialStartDate={result?.dateRange.start ?? defaultStart}
-            initialEndDate={result?.dateRange.end ?? defaultEnd}
+            initialKeyword={keyword}
+            initialStartDate={dateRange.start}
+            initialEndDate={dateRange.end}
             loading={loading}
             onSearch={runSearch}
           />
-          <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-2">
+            <AlertPanel alerts={alerts} onSelect={setSelectedNode} />
+            <ThemeToggle />
+          </div>
         </header>
       ) : (
         <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -94,7 +134,7 @@ export default function Home() {
 
           <div className="relative flex flex-1 flex-col items-center justify-center px-6 pb-16">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300">
-              Prototipe pemantauan lintas sumber
+              Prototipe pemetaan jaringan akun
             </span>
 
             <div className="mb-8 mt-4 text-center">
@@ -102,7 +142,7 @@ export default function Home() {
                 SocMed <span className="text-indigo-600">Radar</span>
               </h1>
               <p className="mx-auto mt-3 max-w-xl text-neutral-500">
-                Cari topik &mdash; hasilnya divisualisasikan sebagai peta sumber, bukan daftar tautan.
+                Cari topik &mdash; telusuri akun yang live membahasnya, lalu jaringan follower/following-nya.
               </p>
             </div>
 
@@ -130,16 +170,13 @@ export default function Home() {
 
             <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-xs">
               <span className="text-neutral-400">Dipantau dari:</span>
-              {(Object.keys(CATEGORY_LABELS) as SourceCategory[]).map((category) => (
+              {(Object.keys(PLATFORM_LABELS) as AccountPlatform[]).map((platform) => (
                 <span
-                  key={category}
+                  key={platform}
                   className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
                 >
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: CATEGORY_COLORS[category] }}
-                  />
-                  {CATEGORY_LABELS[category]}
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PLATFORM_COLORS[platform] }} />
+                  {PLATFORM_LABELS[platform]}
                 </span>
               ))}
             </div>
@@ -151,9 +188,7 @@ export default function Home() {
                   className="rounded-2xl border border-neutral-200 bg-white/60 p-4 text-left backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/50"
                 >
                   <span className="text-xs font-semibold text-indigo-600">{item.step}</span>
-                  <h3 className="mt-1 text-sm font-medium text-neutral-800 dark:text-neutral-100">
-                    {item.title}
-                  </h3>
+                  <h3 className="mt-1 text-sm font-medium text-neutral-800 dark:text-neutral-100">{item.title}</h3>
                   <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{item.desc}</p>
                 </div>
               ))}
@@ -169,17 +204,31 @@ export default function Home() {
       {hasResult && (
         <main className="relative flex flex-1 flex-col overflow-hidden">
           {loading && <LoadingState />}
-          {error && !loading && (
-            <div className="flex flex-1 items-center justify-center text-sm text-red-500">{error}</div>
-          )}
-          {!loading && !error && result && (
+          {!loading && network && (
             <>
-              <SearchStats data={result} />
-              <SpiderDiagram data={result} onNodeSelect={setSelectedNode} />
+              <NetworkStats data={network} />
+              <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-6 py-2 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
+                <span>Klik lingkaran akun untuk memuat following/follower-nya</span>
+                <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                <span>Maksimal {MAX_AUTO_DEPTH} level otomatis, setelah itu pakai &ldquo;Muat lebih&rdquo;</span>
+              </div>
+              <AccountNetworkDiagram
+                data={network}
+                onExpand={handleExpand}
+                onSelect={setSelectedNode}
+                selectedId={selectedNode?.id}
+              />
             </>
           )}
-          <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+          <AccountDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
         </main>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2.5 text-xs font-medium text-red-600 shadow-lg dark:border-red-900 dark:bg-neutral-900 dark:text-red-400">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+          {toast}
+        </div>
       )}
     </div>
   );
